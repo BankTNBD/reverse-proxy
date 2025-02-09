@@ -2,7 +2,7 @@ const fs = require("fs");
 const http = require("http");
 const https = require("https");
 const express = require("express");
-const proxy = require("express-http-proxy"); // Change here
+const httpProxy = require("http-proxy");
 require("dotenv").config();
 
 const config = require('./config.json');
@@ -10,9 +10,8 @@ const config = require('./config.json');
 let hostList = [];
 let forwList = [];
 
-// Load host and forward mappings
 config.forEach((value) => {
-    if (!value.host || !value.forward ) {
+    if (!value.host || !value.forward) {
         console.error(`Invalid config: ${value.host} → ${value.forward}`);
     } else {
         hostList.push(`${value.host}`);
@@ -22,7 +21,8 @@ config.forEach((value) => {
 
 const app = express();
 
-// Middleware to check domain and proxy requests
+const proxy = httpProxy.createProxyServer({});
+
 app.use((req, res, next) => {
     const host = req.headers.host;
     console.log(`Incoming request: ${req.protocol}://${host}${req.url}`);
@@ -32,18 +32,18 @@ app.use((req, res, next) => {
         return res.status(404).send("Domain not found");
     }
 
-    const targetHost = `http://${forwList[hostIndex]}`; // Always forward to HTTP
+    const targetHost = `http://${forwList[hostIndex]}`;
     console.log(`Forwarding request to: ${targetHost}`);
 
-    proxy(targetHost, {
-        proxyReqOptDecorator: (proxyReqOpts) => {
-            proxyReqOpts.headers['X-Forwarded-Proto'] = 'https'; // Tell backend the request was HTTPS
-            return proxyReqOpts;
+    proxy.web(req, res, { 
+        target: targetHost,
+        changeOrigin: true,
+        headers: {
+            'X-Forwarded-Proto': 'https'
         }
-    })(req, res, next);
+    });
 });
 
-// Start HTTP and HTTPS servers
 const httpServer = http.createServer(app);
 const httpPort = process.env.HTTP_PORT || 80;
 httpServer.listen(httpPort, () => console.log(`HTTP Reverse Proxy running on port ${httpPort}...`));
