@@ -1,58 +1,36 @@
-const fs = require("fs");
-const http = require("http");
-const https = require("https");
-const express = require("express");
-const httpProxy = require("http-proxy");
-require("dotenv").config();
+import fs from "node:fs";
+import dotenv from "dotenv";
 
-const config = require('./config.json');
+dotenv.config();
 
-let hostList = [];
-let forwList = [];
+import { tcpServer } from "./tcp.js";
+import { httpsServer } from "./https.js";
 
-config.forEach((value) => {
-    if (!value.host || !value.forward) {
-        console.error(`Invalid config: ${value.host} → ${value.forward}`);
-    } else {
-        hostList.push(`${value.host}`);
-        forwList.push(`${value.forward}`);
+let list; 
+try {
+    list = JSON.parse(fs.readFileSync("./list.json", "utf-8"));
+} catch (err) {
+    console.error("cannot reading list file");
+    process.exit(1);
+}
+
+
+let listPort = [];
+for (const value of list) {
+    if (listPort.includes(value.port)) {
+        console.error("port", value.port, "duplicated");
+        continue;
     }
-});
-
-const app = express();
-
-const proxy = httpProxy.createProxyServer({});
-
-app.use((req, res, next) => {
-    const host = req.headers.host;
-    console.log(`Incoming request: ${req.protocol}://${host}${req.url}`);
-
-    let hostIndex = hostList.findIndex(item => item === host);
-    if (hostIndex === -1) {
-        return res.status(404).send("Domain not found");
+    listPort.push(value.port);
+    switch (value.protocol.toLowerCase()) {
+        case "tcp":
+            tcpServer(value.name, value.port, value.host, value.forward);
+            break;
+        case "http":
+            tcpServer(value.name, value.port, value.host, value.forward);
+            break;
+        case "https":
+            httpsServer(value.name, value.port, value.host, value.forward);
+            break;
     }
-
-    const targetHost = `http://${forwList[hostIndex]}`;
-    console.log(`Forwarding request to: ${targetHost}`);
-
-    proxy.web(req, res, { 
-        target: targetHost,
-        changeOrigin: true,
-        headers: {
-            'X-Forwarded-Proto': 'https'
-        }
-    });
-});
-
-const httpServer = http.createServer(app);
-const httpPort = process.env.HTTP_PORT || 80;
-httpServer.listen(httpPort, () => console.log(`HTTP Reverse Proxy running on port ${httpPort}...`));
-
-const httpsOptions = {
-    key: fs.readFileSync(process.env.SSL_KEY, "utf8"),
-    cert: fs.readFileSync(process.env.SSL_CERT, "utf8")
-};
-
-const httpsPort = process.env.HTTPS_PORT || 443;
-const httpsServer = https.createServer(httpsOptions, app);
-httpsServer.listen(httpsPort, () => console.log(`HTTPS Reverse Proxy running on port ${httpsPort}...`));
+}

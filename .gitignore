@@ -1,4 +1,4 @@
 node_modules
 .env
-config.json
+list.json
 ssl-cert

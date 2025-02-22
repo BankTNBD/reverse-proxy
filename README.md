@@ -1,60 +1,87 @@
-
 # 🌐 reverse proxy
 
-Reverse proxy server from Express.js (Node.js)
+Reverse proxy server usign Node.js.
 
 ## 👨🏻‍💻 Authors
 
 - [@BankTNBD](https://github.com/BankTNBD)
 
-## 🛠️ Config
+## 🛠️ Configuration
 
-Before start a server their are more steps you need to do.
+Before starting the server, there are a few steps you need to complete.
 
-Setup ```.env``` file.
+**1️⃣ Setup .env file:**
 ```
-    HTTP_PORT=8000
-    HTTPS_PORT=8001
-    SSL_KEY="PATH/TO/SSL_KEY"
-    SSL_CERT="PATH/TO/SSL_CERTIFICATE"
+SSL_KEY="PATH/TO/SSL_KEY"
+SSL_CERT="PATH/TO/SSL_CERTIFICATE"
 ```
-This is not required. If you not set ```HTTP_PORT``` or ```HTTPS_PORT``` this will set to ```80``` and ```443``` respectively by default.
 
-Setup ```config.json``` file
-```
-    [
-        {
-            "host": "HOSTNAME:PORT", // For incoming
-            "forward": "HOSTNAME:PORT" // For forwarding
-        },
-        ...
-    ]
-```
-For example
-```
-    [
-        {
-            "host": "your.domain.com:8000",
-            "forward": "your-server.local:3000"
+**2️⃣ Setup list.json file:**
+```json
+[
+    {
+        "name": "",
+        "protocol": "",
+        "port": 8000,
+        "host": [ "HOSTNAME" ],
+        "forward": {
+            "address": "HOSTNAME",
+            "port": 8000
         }
-    ]
+    },
+    ...
+]
 ```
-This will forward request to ```your-server.local:3000```, if incoming request is from ```your.domain.com:8000```
+- ```name``` (optional): Before starting the server, there are a few steps you need to complete.
+- ```protocol```: Canba ```http```, ```https``` or ```tcp```.
+- ```port```: The port on which the reverse proxy listens.
+- ```host```: An array of hostnames that the proxy should handle.
+- ```forward```: The destination server details.
 
-## 🚀 Start a server
-
-Start a server with npm after clone this project.
-
-```bash
-    cd reverse-proxy
+Example:
+```json
+[
+    {
+        "name": "Chat Server",
+        "protocol": "tcp",
+        "port": 8000,
+        "host": [ "your.domain.com", "www.domain.com", "my.domain.com" ],
+        "forward": {
+            "address": "your-server.local",
+            "port": 3000
+        }
+    },
+    {
+        "protocol": "https",
+        "port": 8001,
+        "host": [ "domain.com" ],
+        "forward": {
+            "address": "your-web-server.local",
+            "port": 3000
+        }
+    }
+]
 ```
 
-Install node modules using npm
+Explaination:
+- Requests to ```your.domain.com:8000```, ```www.domain.com:8000```, or ```my.domain.com:8000``` will be forwarded to ```your-server.local:3000``` over TCP.
+- Requests to ```domain.com:8001``` over HTTPS will be forwarded to ```your-web-server.local:3000``` over HTTP.
+
+## 🚀 Running the Server
+
+After cloning this project, follow these steps:
+
+**1️⃣ Navigate to the project directory:**
 ```bash
-    npm install
+cd reverse-proxy
 ```
 
-Start a server
+**2️⃣ Install dependencies:**
 ```bash
-    npm start
+npm install
+```
+
+**3️⃣ Start the server:**
+```bash
+npm start
 ```
