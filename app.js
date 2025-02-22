@@ -6,6 +6,7 @@ dotenv.config();
 import { tcpServer } from "./tcp.js";
 import { httpsServer } from "./https.js";
 
+// check if list file are exist
 let list; 
 try {
     list = JSON.parse(fs.readFileSync("./list.json", "utf-8"));
@@ -14,23 +15,43 @@ try {
     process.exit(1);
 }
 
+// create list of tcp server and https server
+let tcpList = [];
+let httpsList = [];
 
-let listPort = [];
-for (const value of list) {
-    if (listPort.includes(value.port)) {
-        console.error("port", value.port, "duplicated");
-        continue;
+// grouping list by port
+function createPortList(port, list, proxy) {
+    let listObj = list.find(obj => obj.port === port);
+
+    if (listObj) {
+        listObj.list.push({ host: proxy.host, forward: proxy.forward, port: proxy.port });
+        list = list.map(obj => obj.port === port ? listObj : obj);
+    } else {
+        list.push({ port: port, list: [{ host: proxy.host, forward: proxy.forward, port: proxy.port }] });
     }
-    listPort.push(value.port);
+    return list;
+}
+
+// add to list
+for (const value of list) {
     switch (value.protocol.toLowerCase()) {
         case "tcp":
-            tcpServer(value.name, value.port, value.host, value.forward);
+            tcpList = createPortList(value.port, tcpList, { host: value.host, forward: value.forward.address, port: value.forward.port });
             break;
         case "http":
-            tcpServer(value.name, value.port, value.host, value.forward);
+            tcpList = createPortList(value.port, tcpList, { host: value.host, forward: value.forward.address, port: value.forward.port });
             break;
         case "https":
-            httpsServer(value.name, value.port, value.host, value.forward);
-            break;
+            httpsList = createPortList(value.port, httpsList, { host: value.host, forward: value.forward.address, port: value.forward.port });
+        break;
     }
 }
+
+// create tcp server for every port
+tcpList.forEach((value) => {
+    tcpServer(value.port, value.list);
+});
+// create https server for every port
+httpsList.forEach((value) => {
+    httpsServer(value.port, value.list);
+});
