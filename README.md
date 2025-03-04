@@ -63,7 +63,7 @@ Example:
     {
         "protocol": "tcp",
         "port": 8002,
-        "host": [ "*" ],
+        "host": "*",
         "forward": {
             "address": "your-web-db.local",
             "port": 3000

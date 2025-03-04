@@ -1,15 +1,12 @@
-// TCP proxy server
-
 import net from "node:net";
 
 export function tcpServer(port, list) {
-    // create tcp server to wait request
     const server = net.createServer((client) => {
-        // trigger when get request
-        client.once("data", (data) => {
-            try {
-                let proxy = list.find(list => list.host.includes("*")); // find if host allow all connection
-                if (!proxy) {
+        let proxy = list.find(list => list.host === "*");
+        if (!proxy) {
+            // trigger when get request
+            client.once("data", (data) => {
+                try {
                     const matchHost = data.toString().match(/Host: ([^\r\n]+)/); // find hostname from data header
                     // check if hostname exist
                     if (!matchHost) {
@@ -26,25 +23,38 @@ export function tcpServer(port, list) {
                         client.end("403 Forbidden");
                         return;
                     }
+                    // connect to backend server
+                    const forwardedServer = net.createConnection(proxy.port, proxy.forward, () => {
+                        client.pipe(forwardedServer).pipe(client); // forward between two sockert (client and server)
+                    });
+                } catch (err) {
+                    // handle error
+                    console.error("internal server error:", err);
+                    client.end("500 Internal Server Error");
                 }
-                // connect to backend server
-                const forwardedServer = net.createConnection(proxy.port, proxy.forward, () => {
-                    forwardedServer.write(data); // write data to forward server stream
-                    client.pipe(forwardedServer).pipe(client); // forward between two sockert (client and server)
-                });
-            } catch (err) {
-                // handle error
-                console.error("internal server error:", err);
+            });
+        } else {
+            // Directly connect to the backend without checking HTTP headers
+            const forwardedServer = net.createConnection(proxy.port, proxy.forward, () => {
+                client.pipe(forwardedServer).pipe(client); // Bidirectional data transfer
+            });
+
+            forwardedServer.on("error", (err) => {
+                console.error("Error connecting to backend:", err);
                 client.end("500 Internal Server Error");
-            }
-        });
+            });
+
+            client.on("error", (err) => {
+                console.error("Client connection error:", err);
+            });
+        }
     });
-    // handle error
+
     server.on("error", (err) => {
-        console.error("server error: ", err);
+        console.error("Server error:", err);
     });
-    // start server
+
     server.listen(port, () => {
-        console.log("TCP Reverse Proxy", "running on port", port);
+        console.log("TCP Reverse Proxy running on port", port);
     });
 }
