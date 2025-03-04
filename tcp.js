@@ -8,20 +8,24 @@ export function tcpServer(port, list) {
         // trigger when get request
         client.once("data", (data) => {
             try {
-                const matchHost = data.toString().match(/Host: ([^\r\n]+)/); // find hostname from data header
-                // check if hostname exist
-                if (!matchHost) {
-                    console.error("host headers not found");
-                    client.end("400 Bad Request");
-                    return;
-                }
-                const hostname = matchHost[1].trim().split(":")[0]; // get hostname without port
-                let proxy = list.find(list => list.host.includes(hostname)); // find what url allow and where to redirect
-                // check if host allow
+                let proxy = list.find(list => list.host.includes("*")); // find if host allow all connection
                 if (!proxy) {
-                    console.error("host not allowes");
-                    client.end("403 Forbidden");
-                    return;
+                    const matchHost = data.toString().match(/Host: ([^\r\n]+)/); // find hostname from data header
+                    // check if hostname exist
+                    if (!matchHost) {
+                        console.error("host headers not found");
+                        client.end("400 Bad Request");
+                        return;
+                    }
+                    const hostname = matchHost[1].trim().split(":")[0]; // get hostname without port
+                    proxy = list.find(list => list.host.includes(hostname)); // find what url allow and where to redirect
+
+                    // check if host allow
+                    if (!proxy) {
+                        console.error("host not allowes");
+                        client.end("403 Forbidden");
+                        return;
+                    }
                 }
                 // connect to backend server
                 const forwardedServer = net.createConnection(proxy.port, proxy.forward, () => {

@@ -59,6 +59,15 @@ Example:
             "address": "your-web-server.local",
             "port": 3000
         }
+    },
+    {
+        "protocol": "tcp",
+        "port": 8002,
+        "host": [ "*" ],
+        "forward": {
+            "address": "your-web-db.local",
+            "port": 3000
+        }
     }
 ]
 ```
@@ -66,6 +75,7 @@ Example:
 Explaination:
 - Requests to ```your.domain.com:8000```, ```www.domain.com:8000```, or ```my.domain.com:8000``` will be forwarded to ```your-server.local:3000``` over TCP.
 - Requests to ```domain.com:8001``` over HTTPS will be forwarded to ```your-web-server.local:3000``` over HTTP.
+- Requests to every doamin in port ```:8002``` will be forwarded to ```your-web-db.local:3000``` over TCP.
 
 ## 🚀 Running the Server
 
