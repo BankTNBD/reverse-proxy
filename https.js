@@ -2,72 +2,81 @@ import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
 
+import { log } from "./lib/log.js";
+
 export function httpsServer(port, list) {
-    // ssl cert option
+    // SSL certificates options
     const options = {
-        key: fs.readFileSync(process.env.SSL_KEY, "utf-8"),
-        cert: fs.readFileSync(process.env.SSL_CERT, "utf-8")
+        key: fs.readFileSync(process.env.SSL_KEY, "utf-8"),  // Load SSL private key
+        cert: fs.readFileSync(process.env.SSL_CERT, "utf-8") // Load SSL certificate
     };
 
-    // create server for request and response
+    // Create HTTPS server for handling incoming requests
     const server = https.createServer(options, (req, res) => {
-        const hostname = (req.headers.host).split(":")[0];  // get hostname from request headers
-        // check if hostname exists
+        // Extract hostname from the 'Host' header of the request
+        const hostname = req.headers.host.split(":")[0]; 
+
+        // Validate if hostname is provided in the request
         if (!hostname) {
-            console.error("host headers not found");
+            log("info", "Host header not found in the request.");
             res.writeHead(400, { "Content-Type": "text/plain" });
             res.end("400 Bad Request");
             return;
         }
 
-        let proxy = list.find(list => list.host.includes(hostname)); // find allowed host and where to redirect
-        // check if the host is allowed
+        // Find the proxy rule that matches the hostname
+        let proxy = list.find(proxy => proxy.host.includes(hostname)); 
+
+        // Validate if the proxy configuration for the host is found
         if (!proxy) {
-            console.error("host not allowed");
+            log("info", `Host '${hostname}' not allowed for proxying.`);
             res.writeHead(403, { "Content-Type": "text/plain" });
             res.end("403 Forbidden");
-            return ;
+            return;
         }
 
-        // Add CORS headers to allow all origins
+        // Add CORS headers to allow cross-origin requests
         res.setHeader('Access-Control-Allow-Origin', '*');  // Allow all origins
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-        // Handle pre-flight OPTIONS request (CORS check)
+        // Handle pre-flight OPTIONS request (for CORS checks)
         if (req.method === 'OPTIONS') {
             res.writeHead(204, { 'Content-Type': 'text/plain' });
             res.end();
             return;
         }
 
-        // create redirect options
-        const options = {
-            hostname: proxy.forward,
-            port: proxy.port,
-            path: req.url,
-            method: req.method,
-            headers: req.headers,
+        // Prepare options for forwarding the request to the backend server
+        const forwardOptions = {
+            hostname: proxy.forward,  // Backend server hostname
+            port: proxy.port,         // Backend server port
+            path: req.url,            // Path from the original request
+            method: req.method,       // HTTP method of the original request
+            headers: req.headers,     // Forward all request headers
         };
 
-        // connect to backend server
-        const forwardedServer = http.request(options, (fwdRes) => {
+        // Create a request to forward the incoming request to the backend server
+        const forwardedServer = http.request(forwardOptions, (fwdRes) => {
+            log("info", `Forward: ${req.socket.remoteAddress} -> ${proxy.forward}:${proxy.port}`);
+            // When the backend responds, forward the response headers and body to the client
             res.writeHead(fwdRes.statusCode, fwdRes.headers);
-            fwdRes.pipe(res); // forward data from backend server to response
+            fwdRes.pipe(res); // Pipe the backend response to the client
         });
 
-        // handle error
+        // Handle errors when forwarding the request
         forwardedServer.on("error", (err) => {
-            console.error("error forwarding request:", err);
+            log("error", `Error forwarding request to backend: ${err.message}`);
             res.writeHead(502, { "Content-Type": "text/plain" });
-            res.end("502 Bad Gateway");
+            res.end("502 Bad Gateway"); // Return a 502 Bad Gateway error if the backend fails
         });
 
-        req.pipe(forwardedServer); // forward data from the request to the backend server
+        // Pipe the incoming request data to the backend server
+        req.pipe(forwardedServer);
     });
 
-    // run the server on the specified port
+    // Start the server to listen on the specified port
     server.listen(port, () => {
-        console.log("HTTPS Reverse Proxy", "running on port", port);
+        log("info", `HTTPS Reverse Proxy running on port ${port}`);
     });
 }

@@ -29,7 +29,6 @@ SSL_CERT="PATH/TO/SSL_CERTIFICATE"
             "port": 8000
         }
     },
-    ...
 ]
 ```
 - ```name``` (optional): Before starting the server, there are a few steps you need to complete.
