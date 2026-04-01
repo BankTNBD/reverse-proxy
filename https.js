@@ -25,7 +25,7 @@ export function httpsServer(port, list) {
         }
 
         // Find the proxy rule that matches the hostname
-        let proxy = list.find(proxy => proxy.host.includes(hostname)); 
+        let proxy = list.find(proxy => proxy.host === hostname); 
 
         // Validate if the proxy configuration for the host is found
         if (!proxy) {
