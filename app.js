@@ -8,6 +8,7 @@ dotenv.config();
 import { tcpServer } from "./functions/tcp.js";
 import { httpsServer } from "./functions/https.js";
 import { log } from "./libs/log.js";
+import { createPortList } from "./libs/createPortList.js";
 
 const numCPUs = os.availableParallelism(); // Get the number of available CPUs on the machine
 
@@ -25,19 +26,6 @@ if (cluster.isPrimary) {
     // Lists for grouping proxies by port and protocol
     let tcpList = [];
     let httpsList = [];
-
-    // Function to group proxies by their port
-    function createPortList(port, list, proxy) {
-        let listObj = list.find(obj => obj.port === port);
-        
-        if (listObj) {
-            // Add the proxy to the existing port group
-            listObj.list.push({ host: proxy.host, forward: proxy.forward, port: proxy.port });
-        } else {
-            // Create a new port group for the proxy
-            list.push({ port, list: [{ host: proxy.host, forward: proxy.forward, port: proxy.port }] });
-        }
-    }
 
     // Loop through the proxies and categorize them based on protocol
     for (const value of list) {

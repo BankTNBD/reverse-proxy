@@ -1,7 +1,5 @@
 import fs from 'node:fs/promises';
-import dotenv from 'dotenv';
 
-dotenv.config();
 /**
 * @param {'info' | 'error' | 'warning'} type
 */
