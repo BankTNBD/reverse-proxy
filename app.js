@@ -5,9 +5,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-import { tcpServer } from "./tcp.js";
-import { httpsServer } from "./https.js";
-import { log } from "./lib/log.js";
+import { tcpServer } from "./functions/tcp.js";
+import { httpsServer } from "./functions/https.js";
+import { log } from "./libs/log.js";
 
 const numCPUs = os.availableParallelism(); // Get the number of available CPUs on the machine
 

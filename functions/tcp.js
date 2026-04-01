@@ -1,6 +1,6 @@
 import net from "node:net";
 
-import { log } from "./lib/log.js";
+import { log } from "../libs/log.js";
 
 export function tcpServer(port, list) {
     const server = net.createServer((client) => {

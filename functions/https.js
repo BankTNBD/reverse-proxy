@@ -2,7 +2,7 @@ import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
 
-import { log } from "./lib/log.js";
+import { log } from "../libs/log.js";
 
 export function httpsServer(port, list) {
     // SSL certificates options
