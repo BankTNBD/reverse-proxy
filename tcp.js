@@ -18,6 +18,7 @@ export function tcpServer(port, list) {
                     if (!matchHost) {
                         log("info", `${client.remoteAddress} - Host header not found.`);
                         client.end("400 Bad Request");
+                        client.destroy();
                         return;
                     }
 
@@ -30,6 +31,7 @@ export function tcpServer(port, list) {
                     if (!proxy) {
                         log("info", `${client.remoteAddress} - Host not allowed.`);
                         client.end("403 Forbidden");
+                        client.destroy();
                         return;
                     }
 
@@ -46,11 +48,20 @@ export function tcpServer(port, list) {
                     forwardedServer.on("error", (err) => {
                         log("error", `Error connecting to backend server: ${err.message}`);
                         client.end("500 Internal Server Error");
+                        client.destroy();
+                    });
+
+                    forwardedServer.setTimeout(5000, () => { // Set a timeout for the forwarded connection
+                        log("error", "Forwarded connection timed out.");
+                        forwardedServer.destroy(); // Destroy the connection if it times out
+                        client.end("504 Gateway Timeout"); // Inform the client about the timeout
+                        client.destroy(); // Destroy the client connection
                     });
                 } catch (err) {
                     // Handle unexpected internal errors
                     log("error", `Internal server error: ${err.message}`);
                     client.end("500 Internal Server Error");
+                    client.destroy();
                 }
             });
 
@@ -60,6 +71,7 @@ export function tcpServer(port, list) {
                 client.end("500 Internal Server Error");
                 client.destroy();
             });
+
         } else {
             // If a wildcard proxy is found, directly forward the data without checking the headers
             const forwardedServer = net.createConnection(proxy.port, proxy.forward, () => {
@@ -72,11 +84,19 @@ export function tcpServer(port, list) {
             forwardedServer.on("error", (err) => {
                 log("error", `Error connecting to backend server: ${err.message}`);
                 client.end("500 Internal Server Error");
+                client.destroy();
             });
 
             // Handle errors that occur on the client connection in this case
             client.on("error", (err) => {
                 log("error", `Client connection error: ${err.message}`);
+            }); 
+
+            forwardedServer.setTimeout(5000, () => { // Set a timeout for the forwarded connection
+                log("error", "Forwarded connection timed out.");
+                forwardedServer.destroy(); // Destroy the connection if it times out
+                client.end("504 Gateway Timeout"); // Inform the client about the timeout
+                client.destroy(); // Destroy the client connection
             });
         }
     });

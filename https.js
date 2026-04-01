@@ -71,6 +71,11 @@ export function httpsServer(port, list) {
             res.end("502 Bad Gateway"); // Return a 502 Bad Gateway error if the backend fails
         });
 
+        forwardedServer.setTimeout(5000, () => { // Set a timeout for the forwarded request
+            log("error", "Forwarded request timed out.");
+            forwardedServer.destroy(); // Destroy the connection if it times out
+        });
+
         // Pipe the incoming request data to the backend server
         req.pipe(forwardedServer);
     });
