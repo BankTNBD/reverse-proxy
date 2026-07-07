@@ -5,3 +5,6 @@ npm-debug.log
 .env
 .env.test
 file.log
+list.json
+config/
+

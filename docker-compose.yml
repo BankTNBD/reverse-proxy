@@ -3,13 +3,7 @@ services:
     build: .
     container_name: reverse-proxy
     restart: unless-stopped
-    ports:
-      # Map the ports you defined in your list.json here. For example:
-      # - "80:80"
-      # - "443:443"
-      # - "3000:3000"
+    network_mode: "host"
     volumes:
-      # Mount list.json so you can update it without rebuilding the image
-      - ./list.json:/usr/src/app/list.json
-      # Mount .env if you have any environment variables
-      - ./.env:/usr/src/app/.env
+      # Mount the configuration folder containing list.json and .env
+      - ./config:/usr/src/app/config:ro

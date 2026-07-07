@@ -4,6 +4,7 @@ import cluster from "node:cluster";
 import dotenv from "dotenv";
 
 dotenv.config();
+dotenv.config({ path: "./config/.env" });
 
 import { tcpServer } from "./functions/tcp.js";
 import { httpsServer } from "./functions/https.js";
@@ -16,10 +17,11 @@ const numCPUs = os.availableParallelism(); // Get the number of available CPUs o
 if (cluster.isPrimary) {
     let list;
     try {
-        // Read and parse the list of proxies from the 'list.json' file
-        list = JSON.parse(fs.readFileSync("./list.json", "utf-8"));
+        // Read and parse the list of proxies from 'config/list.json' or fallback to 'list.json'
+        const configPath = fs.existsSync("./config/list.json") ? "./config/list.json" : "./list.json";
+        list = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     } catch (err) {
-        log("error", `Failed to read or parse 'list.json': ${err.message}`);
+        log("error", `Failed to read or parse proxy configuration: ${err.message}`);
         process.exit(1); // Exit the process if there's an error
     }
 
