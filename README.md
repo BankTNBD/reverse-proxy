@@ -159,6 +159,16 @@ docker compose logs -f
 
 ### 3️⃣ Using Docker CLI
 
+#### Option A: Pull and Run Pre-built Image (Recommended)
+
+You can pull and run the pre-built image directly from GitHub Container Registry (GHCR). This uses host network mode and mounts your local configuration folder:
+
+```bash
+docker run -d --name reverse-proxy --restart unless-stopped --network host -v $(pwd)/config:/usr/src/app/config:ro ghcr.io/banktnbd/reverse-proxy:latest
+```
+
+#### Option B: Build and Run Locally
+
 1. **Build the Docker Image:**
    ```bash
    docker build -t node-reverse-proxy .
