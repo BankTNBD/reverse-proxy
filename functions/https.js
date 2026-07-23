@@ -35,10 +35,17 @@ export function httpsServer(port, list) {
             return;
         }
 
-        // Add CORS headers to allow cross-origin requests
-        res.setHeader('Access-Control-Allow-Origin', '*');  // Allow all origins
+        // Add CORS headers to allow cross-origin requests dynamically
+        const origin = req.headers.origin;
+        if (origin) {
+            res.setHeader('Access-Control-Allow-Origin', origin);
+            res.setHeader('Access-Control-Allow-Credentials', 'true');
+        } else {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        }
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept, Authorization, X-Requested-With');
+        res.setHeader('Access-Control-Max-Age', '86400');
 
         // Handle pre-flight OPTIONS request (for CORS checks)
         if (req.method === 'OPTIONS') {
