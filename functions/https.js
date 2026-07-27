@@ -1,20 +1,84 @@
 import http from "node:http";
 import https from "node:https";
+import tls from "node:tls";
 import fs from "node:fs";
 
 import { log } from "../libs/log.js";
 
 export function httpsServer(port, list) {
-    // SSL certificates options
-    const options = {
-        key: fs.readFileSync(process.env.SSL_KEY, "utf-8"),  // Load SSL private key
-        cert: fs.readFileSync(process.env.SSL_CERT, "utf-8") // Load SSL certificate
+    // Cache for dynamically loaded SSL Contexts (for SNI support)
+    const sslContexts = new Map();
+
+    // Load default SSL context
+    let defaultCtx;
+    try {
+        if (process.env.SSL_KEY && process.env.SSL_CERT) {
+            defaultCtx = tls.createSecureContext({
+                key: fs.readFileSync(process.env.SSL_KEY, "utf-8"),
+                cert: fs.readFileSync(process.env.SSL_CERT, "utf-8")
+            });
+        }
+    } catch (err) {
+        log("error", `Failed to load default SSL credentials: ${err.message}`);
+    }
+
+    const getSecureContext = (servername) => {
+        if (sslContexts.has(servername)) {
+            return sslContexts.get(servername);
+        }
+
+        // Find the proxy rule matching the servername
+        const proxy = list.find(proxy => {
+            if (Array.isArray(proxy.host)) {
+                return proxy.host.includes(servername);
+            }
+            return proxy.host === servername;
+        });
+
+        // If the proxy has specific SSL configuration, use it to create a SecureContext
+        if (proxy && proxy.ssl && proxy.ssl.key && proxy.ssl.cert) {
+            try {
+                const ctx = tls.createSecureContext({
+                    key: fs.readFileSync(proxy.ssl.key, "utf-8"),
+                    cert: fs.readFileSync(proxy.ssl.cert, "utf-8")
+                });
+                sslContexts.set(servername, ctx);
+                return ctx;
+            } catch (err) {
+                log("error", `Failed to load custom SSL certificates for ${servername}: ${err.message}`);
+            }
+        }
+
+        return null;
     };
+
+    // SSL certificates options with SNICallback for dynamic SSL support
+    const options = {
+        SNICallback: (servername, cb) => {
+            const ctx = getSecureContext(servername);
+            if (ctx) {
+                cb(null, ctx);
+            } else if (defaultCtx) {
+                cb(null, defaultCtx);
+            } else {
+                cb(new Error("No SSL credentials available for this connection"));
+            }
+        }
+    };
+
+    if (process.env.SSL_KEY && process.env.SSL_CERT) {
+        try {
+            options.key = fs.readFileSync(process.env.SSL_KEY, "utf-8");
+            options.cert = fs.readFileSync(process.env.SSL_CERT, "utf-8");
+        } catch (err) {
+            log("error", `Failed to load top-level default SSL credentials: ${err.message}`);
+        }
+    }
 
     // Create HTTPS server for handling incoming requests
     const server = https.createServer(options, (req, res) => {
-        // Extract hostname from the 'Host' header of the request
-        const hostname = req.headers.host.split(":")[0]; 
+        // Extract hostname from the 'Host' header of the request (safely handling cases where host header is missing)
+        const hostname = req.headers.host ? req.headers.host.split(":")[0] : ""; 
 
         // Validate if hostname is provided in the request
         if (!hostname) {
@@ -24,8 +88,13 @@ export function httpsServer(port, list) {
             return;
         }
 
-        // Find the proxy rule that matches the hostname
-        let proxy = list.find(proxy => proxy.host === hostname); 
+        // Find the proxy rule that matches the hostname (supporting array, exact string, or wildcard)
+        let proxy = list.find(proxy => {
+            if (Array.isArray(proxy.host)) {
+                return proxy.host.includes(hostname);
+            }
+            return proxy.host === hostname || proxy.host === "*";
+        });
 
         // Validate if the proxy configuration for the host is found
         if (!proxy) {
@@ -54,13 +123,22 @@ export function httpsServer(port, list) {
             return;
         }
 
+        // Build forward headers adding standard reverse proxy headers
+        const clientIp = req.socket.remoteAddress;
+        const forwardHeaders = {
+            ...req.headers,
+            "x-forwarded-for": req.headers["x-forwarded-for"] ? `${req.headers["x-forwarded-for"]}, ${clientIp}` : clientIp,
+            "x-forwarded-proto": req.headers["x-forwarded-proto"] || "https",
+            "x-forwarded-host": req.headers["x-forwarded-host"] || req.headers.host || "",
+        };
+
         // Prepare options for forwarding the request to the backend server
         const forwardOptions = {
             hostname: proxy.forward,  // Backend server hostname
             port: proxy.port,         // Backend server port
             path: req.url,            // Path from the original request
             method: req.method,       // HTTP method of the original request
-            headers: req.headers,     // Forward all request headers
+            headers: forwardHeaders,   // Forward headers with injected proxy headers
         };
 
         // Create a request to forward the incoming request to the backend server

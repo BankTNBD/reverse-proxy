@@ -46,42 +46,51 @@ if (cluster.isPrimary) {
     }
 
     // Calculate the number of workers to spawn based on available CPUs
-    let workers = [];
-    let readyWorkers = 0;
     const numWorkers = Math.min(tcpList.length + httpsList.length, numCPUs); // Max workers will be the smaller of available CPUs or proxy types
 
-    // Fork the workers based on the number of proxies
-    for (let i = 0; i < numWorkers; i++) {
-        let worker = cluster.fork(); // Fork a worker process
-        workers.push(worker);
-        log("info", `Forked worker ${worker.process.pid}`);
+    // Group tasks per worker index to distribute them evenly
+    const workerTasks = Array.from({ length: numWorkers }, () => []);
+    let taskIndex = 0;
+    for (const value of tcpList) {
+        workerTasks[taskIndex++ % numWorkers].push(["tcp", value.port, value.list]);
+    }
+    for (const value of httpsList) {
+        workerTasks[taskIndex++ % numWorkers].push(["https", value.port, value.list]);
+    }
 
-        // Listen for messages from workers
+    // Keep track of which worker has which index
+    const workerIndices = new Map();
+
+    // Helper function to spawn a worker and assign its tasks
+    const spawnWorker = (index) => {
+        const worker = cluster.fork();
+        workerIndices.set(worker.id, index);
+        log("info", `Forked worker ${worker.process.pid} for index ${index + 1}/${numWorkers}`);
+
         worker.on("message", (msg) => {
             if (msg.scheme === "ping") {
-                // When a worker is ready, it sends a "ping" message
-                readyWorkers++; // Increment the count of ready workers
-                log("info", `Worker ${worker.process.pid} is ready (${readyWorkers}/${numWorkers})`);
-
-                // Once all workers are ready, assign them tasks (TCP/HTTPS server)
-                if (readyWorkers === numWorkers) {
-                    let workerIndex = 0;
-
-                    // Distribute the TCP tasks to workers
-                    for (const value of tcpList) {
-                        const worker = workers[workerIndex++ % numWorkers];
-                        worker.send({ scheme: "run", data: ["tcp", value.port, value.list] });
-                    }
-
-                    // Distribute the HTTPS tasks to workers
-                    for (const value of httpsList) {
-                        const worker = workers[workerIndex++ % numWorkers];
-                        worker.send({ scheme: "run", data: ["https", value.port, value.list] });
-                    }
+                log("info", `Worker ${worker.process.pid} is ready. Sending assigned tasks...`);
+                for (const task of workerTasks[index]) {
+                    worker.send({ scheme: "run", data: task });
                 }
             }
         });
+    };
+
+    // Fork the initial set of workers
+    for (let i = 0; i < numWorkers; i++) {
+        spawnWorker(i);
     }
+
+    // Listen for workers dying and restart them automatically
+    cluster.on("exit", (worker, code, signal) => {
+        const index = workerIndices.get(worker.id);
+        if (index !== undefined) {
+            log("warn", `Worker ${worker.process.pid} (index ${index + 1}) died (code: ${code}, signal: ${signal}). Restarting...`);
+            workerIndices.delete(worker.id);
+            spawnWorker(index);
+        }
+    });
 
 } else if (cluster.isWorker) {
     // Send a "ping" message to the primary process to signal that the worker is ready
