@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import dotenv from "dotenv";
 
 // load test env
-dotenv.config({ path: ".env.test" });
+dotenv.config({ path: "./config/.env.test" });
 
 import { log } from "../../libs/log.js";
 
